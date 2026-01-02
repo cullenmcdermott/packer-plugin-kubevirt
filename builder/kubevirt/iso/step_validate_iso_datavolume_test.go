@@ -104,5 +104,35 @@ var _ = Describe("StepValidateIsoDataVolume", func() {
 			action := step.Run(ctx, state)
 			Expect(action).To(Equal(multistep.ActionHalt))
 		})
+
+		It("skips validation when iso_url was used", func() {
+			// When iso_url is set, validation should skip because StepCreateIsoDataVolume handles it
+			step.Config.IsoUrl = "https://example.com/fedora.iso"
+
+			// No DataVolume created - but should still succeed because it skips validation
+			action := step.Run(context.Background(), state)
+			Expect(action).To(Equal(multistep.ActionContinue))
+		})
+
+		It("uses iso_volume_name from state bag when available", func() {
+			stateIsoName := "state-iso-vol"
+
+			// Set iso_volume_name in state bag (simulates StepCreateIsoDataVolume)
+			state.Put("iso_volume_name", stateIsoName)
+
+			// Create DataVolume with state bag name
+			_, err := cdiClient.CdiV1beta1().DataVolumes(namespace).Create(context.Background(), &cdiv1beta1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      stateIsoName,
+					Namespace: namespace,
+				},
+				Status: cdiv1beta1.DataVolumeStatus{Phase: cdiv1beta1.Succeeded},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Step should use name from state bag, not config
+			action := step.Run(context.Background(), state)
+			Expect(action).To(Equal(multistep.ActionContinue))
+		})
 	})
 })

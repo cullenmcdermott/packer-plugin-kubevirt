@@ -17,6 +17,10 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
+// defaultIsoSize is the default size for ISO DataVolumes.
+// Most installation ISOs are between 1-10GB, so 15Gi provides adequate space.
+const defaultIsoSize = "15Gi"
+
 func configMap(name string, mediaFiles []string) (*corev1.ConfigMap, error) {
 	data := make(map[string]string)
 
@@ -38,7 +42,49 @@ func configMap(name string, mediaFiles []string) (*corev1.ConfigMap, error) {
 	}, nil
 }
 
-func virtualMachine(
+// httpIsoDataVolume creates a DataVolume resource that downloads an ISO from an HTTP URL.
+// The storageClass parameter specifies the storage class for the ISO DataVolume.
+// If storageClass is empty, the cluster default storage class will be used.
+func httpIsoDataVolume(name, namespace, url, storageClass string) *cdiv1.DataVolume {
+	// Build PVC spec for the DataVolume
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(defaultIsoSize),
+			},
+		},
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+	}
+
+	// Apply storage class if specified
+	if storageClass != "" {
+		pvcSpec.StorageClassName = ptr.To(storageClass)
+	}
+
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: cdiv1.CDIGroupVersionKind.GroupVersion().String(),
+			Kind:       "DataVolume",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: url,
+				},
+			},
+			PVC: pvcSpec,
+		},
+	}
+}
+
+// VirtualMachine creates a VirtualMachine resource with the specified configuration.
+// The buildStorageClass parameter specifies the storage class for the root disk DataVolume.
+// If buildStorageClass is empty, the cluster default storage class will be used.
+func VirtualMachine(
 	name,
 	isoVolumeName,
 	diskSize,
@@ -47,7 +93,8 @@ func virtualMachine(
 	instanceTypeKind,
 	preferenceKind,
 	osType string,
-	networks []Network) *v1.VirtualMachine {
+	networks []Network,
+	buildStorageClass string) *v1.VirtualMachine {
 	var disks []v1.Disk
 	var volumes []v1.Volume
 
@@ -76,6 +123,21 @@ func virtualMachine(
 		vmNetworks[i], vmInterfaces[i] = convertToNetwork(n)
 	}
 
+	// Build PVC spec for the DataVolumeTemplate
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(diskSize),
+			},
+		},
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+	}
+
+	// Apply storage class if specified
+	if buildStorageClass != "" {
+		pvcSpec.StorageClassName = ptr.To(buildStorageClass)
+	}
+
 	return &v1.VirtualMachine{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1.GroupVersion.String(),
@@ -100,14 +162,7 @@ func virtualMachine(
 						Name: name + "-rootdisk",
 					},
 					Spec: cdiv1.DataVolumeSpec{
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							Resources: corev1.VolumeResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(diskSize),
-								},
-							},
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						},
+						PVC: pvcSpec,
 						Source: &cdiv1.DataVolumeSource{
 							Blank: &cdiv1.DataVolumeBlankImage{},
 						},
@@ -130,7 +185,25 @@ func virtualMachine(
 	}
 }
 
-func cloneVolume(name, namespace, diskSize string) *cdiv1.DataVolume {
+// CloneVolume creates a DataVolume resource that clones from an existing PVC.
+// The outputStorageClass parameter specifies the storage class for the cloned DataVolume.
+// If outputStorageClass is empty, the cluster default storage class will be used.
+func CloneVolume(name, namespace, diskSize, outputStorageClass string) *cdiv1.DataVolume {
+	// Build PVC spec for the DataVolume
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(diskSize),
+			},
+		},
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+	}
+
+	// Apply storage class if specified
+	if outputStorageClass != "" {
+		pvcSpec.StorageClassName = ptr.To(outputStorageClass)
+	}
+
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: cdiv1.CDIGroupVersionKind.GroupVersion().String(),
@@ -146,14 +219,7 @@ func cloneVolume(name, namespace, diskSize string) *cdiv1.DataVolume {
 					Namespace: namespace,
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{
-				Resources: corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(diskSize),
-					},
-				},
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			},
+			PVC: pvcSpec,
 		},
 	}
 }

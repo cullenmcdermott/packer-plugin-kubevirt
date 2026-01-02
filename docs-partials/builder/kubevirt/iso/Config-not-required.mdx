@@ -1,5 +1,33 @@
 <!-- Code generated from the comments of the Config struct in builder/kubevirt/iso/config.go; DO NOT EDIT MANUALLY -->
 
+- `iso_volume_name` (string) - IsoVolumeName is the name of an existing DataVolume resource that contains the installation ISO.
+  This DataVolume must already exist in the namespace.
+  Either iso_volume_name or iso_url must be specified, but not both.
+
+- `iso_url` (string) - IsoUrl is the URL to download the installation ISO from. When specified, a DataVolume
+  will be created using CDI's HTTP source to download the ISO automatically.
+  Either iso_url or iso_volume_name must be specified, but not both.
+
+- `iso_name` (string) - IsoName is an optional override for the auto-generated ISO DataVolume name when using iso_url.
+  If not specified, a deterministic name will be generated from the URL hash.
+  Format when auto-generated: packer-iso-<truncated-hash>
+
+- `iso_storage_class` (string) - IsoStorageClass is the storage class to use for the ISO DataVolume when using iso_url.
+  If not specified, the cluster default storage class will be used.
+
+- `delete_iso` (bool) - DeleteIso indicates whether to delete the ISO DataVolume after the build completes.
+  Only applies when using iso_url. Default is false (ISO is cached for reuse).
+
+- `storage_class` (string) - StorageClass is a shorthand to set both build_storage_class and output_storage_class
+  to the same value. If build_storage_class or output_storage_class are explicitly set,
+  they will override this value for their respective volumes.
+
+- `build_storage_class` (string) - BuildStorageClass is the storage class to use for the temporary root disk during installation.
+  If not specified, falls back to storage_class, then the cluster default.
+
+- `output_storage_class` (string) - OutputStorageClass is the storage class to use for the final cloned DataVolume artifact.
+  If not specified, falls back to storage_class, then the cluster default.
+
 - `instance_type_kind` (string) - InstanceTypeKind is the kind of the InstanceType resource to use in the temporary VM.
   Other supported value is "virtualmachineclusterinstancetype".
 

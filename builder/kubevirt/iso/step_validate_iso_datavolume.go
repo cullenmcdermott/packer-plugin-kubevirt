@@ -20,8 +20,22 @@ type StepValidateIsoDataVolume struct {
 
 func (s *StepValidateIsoDataVolume) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
+
+	// If iso_url was used, the StepCreateIsoDataVolume already validated and created the DataVolume.
+	// Skip validation in this case.
+	if s.Config.IsoUrl != "" {
+		ui.Say("ISO DataVolume was created/validated by previous step, skipping validation...")
+		return multistep.ActionContinue
+	}
+
+	// Get ISO volume name from state bag (set by StepCreateIsoDataVolume)
+	isoVolumeName, ok := state.Get("iso_volume_name").(string)
+	if !ok || isoVolumeName == "" {
+		// Fall back to config for backward compatibility
+		isoVolumeName = s.Config.IsoVolumeName
+	}
+
 	isoVolumeNamespace := s.Config.Namespace
-	isoVolumeName := s.Config.IsoVolumeName
 
 	ui.Sayf("Validating the existence of the ISO DataVolume (%s/%s)...", isoVolumeNamespace, isoVolumeName)
 

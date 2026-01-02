@@ -26,7 +26,6 @@ func (s *StepCreateVirtualMachine) Run(ctx context.Context, state multistep.Stat
 	ui := state.Get("ui").(packer.Ui)
 	name := s.Config.Name
 	namespace := s.Config.Namespace
-	isoVolumeName := s.Config.IsoVolumeName
 	diskSize := s.Config.DiskSize
 	instanceTypeName := s.Config.InstanceType
 	instanceTypeKind := s.Config.InstanceTypeKind
@@ -34,13 +33,21 @@ func (s *StepCreateVirtualMachine) Run(ctx context.Context, state multistep.Stat
 	preferenceKind := s.Config.PreferenceKind
 	osType := s.Config.OperatingSystemType
 	networks := s.Config.Networks
+	buildStorageClass := s.Config.BuildStorageClass
+
+	// Get ISO volume name from state bag if available (set by StepCreateIsoDataVolume),
+	// otherwise fall back to config value for backward compatibility
+	isoVolumeName := s.Config.IsoVolumeName
+	if stateIsoName, ok := state.Get("iso_volume_name").(string); ok && stateIsoName != "" {
+		isoVolumeName = stateIsoName
+	}
 
 	if osType == "" || (osType != "linux" && osType != "windows") {
 		ui.Errorf("OS type of '%s' is not supported, set 'linux' or 'windows'.", osType)
 		return multistep.ActionHalt
 	}
 
-	virtualMachine := virtualMachine(
+	virtualMachine := VirtualMachine(
 		name,
 		isoVolumeName,
 		diskSize,
@@ -49,7 +56,8 @@ func (s *StepCreateVirtualMachine) Run(ctx context.Context, state multistep.Stat
 		instanceTypeKind,
 		preferenceKind,
 		osType,
-		networks)
+		networks,
+		buildStorageClass)
 
 	ui.Sayf("Creating a new temporary VirtualMachine (%s/%s)...", namespace, name)
 

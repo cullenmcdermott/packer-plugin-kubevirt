@@ -7,6 +7,8 @@
 package iso
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -68,9 +70,34 @@ type Config struct {
 	Name string `mapstructure:"name" required:"true"`
 	// Namespace is the namespace in which to create the VM image.
 	Namespace string `mapstructure:"namespace" required:"true"`
-	// ISO Volume Name is the name of the DataVolume resource that contains the installation ISO.
+	// IsoVolumeName is the name of an existing DataVolume resource that contains the installation ISO.
 	// This DataVolume must already exist in the namespace.
-	IsoVolumeName string `mapstructure:"iso_volume_name" required:"true"`
+	// Either iso_volume_name or iso_url must be specified, but not both.
+	IsoVolumeName string `mapstructure:"iso_volume_name" required:"false"`
+	// IsoUrl is the URL to download the installation ISO from. When specified, a DataVolume
+	// will be created using CDI's HTTP source to download the ISO automatically.
+	// Either iso_url or iso_volume_name must be specified, but not both.
+	IsoUrl string `mapstructure:"iso_url" required:"false"`
+	// IsoName is an optional override for the auto-generated ISO DataVolume name when using iso_url.
+	// If not specified, a deterministic name will be generated from the URL hash.
+	// Format when auto-generated: packer-iso-<truncated-hash>
+	IsoName string `mapstructure:"iso_name" required:"false"`
+	// IsoStorageClass is the storage class to use for the ISO DataVolume when using iso_url.
+	// If not specified, the cluster default storage class will be used.
+	IsoStorageClass string `mapstructure:"iso_storage_class" required:"false"`
+	// DeleteIso indicates whether to delete the ISO DataVolume after the build completes.
+	// Only applies when using iso_url. Default is false (ISO is cached for reuse).
+	DeleteIso bool `mapstructure:"delete_iso" required:"false"`
+	// StorageClass is a shorthand to set both build_storage_class and output_storage_class
+	// to the same value. If build_storage_class or output_storage_class are explicitly set,
+	// they will override this value for their respective volumes.
+	StorageClass string `mapstructure:"storage_class" required:"false"`
+	// BuildStorageClass is the storage class to use for the temporary root disk during installation.
+	// If not specified, falls back to storage_class, then the cluster default.
+	BuildStorageClass string `mapstructure:"build_storage_class" required:"false"`
+	// OutputStorageClass is the storage class to use for the final cloned DataVolume artifact.
+	// If not specified, falls back to storage_class, then the cluster default.
+	OutputStorageClass string `mapstructure:"output_storage_class" required:"false"`
 	// DiskSize is the size of the root disk to of the temporary VM.
 	DiskSize string `mapstructure:"disk_size" required:"true"`
 	// InstanceType is the name of the InstanceType resource to use in the temporary VM.
@@ -147,10 +174,44 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
 		return nil, err
 	}
 
+	// Validate network configuration
 	for _, n := range c.Networks {
 		if n.Pod != nil && n.Multus != nil {
 			return nil, fmt.Errorf("network %q: only one of pod or multus can be defined", n.Name)
 		}
 	}
-	return nil, err
+
+	// Validate ISO source configuration: exactly one of iso_url or iso_volume_name must be set
+	if c.IsoUrl != "" && c.IsoVolumeName != "" {
+		return nil, fmt.Errorf("iso_url and iso_volume_name are mutually exclusive; specify only one")
+	}
+	if c.IsoUrl == "" && c.IsoVolumeName == "" {
+		return nil, fmt.Errorf("one of iso_url or iso_volume_name must be specified")
+	}
+
+	// Apply storage class override logic: populate BuildStorageClass and OutputStorageClass
+	// from StorageClass if they are not explicitly set
+	if c.BuildStorageClass == "" && c.StorageClass != "" {
+		c.BuildStorageClass = c.StorageClass
+	}
+	if c.OutputStorageClass == "" && c.StorageClass != "" {
+		c.OutputStorageClass = c.StorageClass
+	}
+
+	// DeleteIso defaults to false (Go zero value for bool is false, so no action needed)
+
+	return nil, nil
+}
+
+// GenerateIsoName creates a deterministic, DNS-compliant name from an ISO URL.
+// The format is: packer-iso-<first-16-chars-of-sha256-hex-hash>
+// This ensures the name is:
+// - Deterministic: same URL always produces the same name
+// - DNS-compliant: lowercase, alphanumeric with hyphens, max 63 characters
+func GenerateIsoName(url string) string {
+	hash := sha256.Sum256([]byte(url))
+	hexHash := hex.EncodeToString(hash[:])
+	// Use first 16 characters of hex hash for uniqueness while keeping name short
+	// Total length: 11 (packer-iso-) + 16 (hash) = 27 characters
+	return "packer-iso-" + hexHash[:16]
 }

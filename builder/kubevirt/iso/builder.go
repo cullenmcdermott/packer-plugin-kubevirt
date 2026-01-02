@@ -66,6 +66,21 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
 	steps := []multistep.Step{}
 	steps = append(steps,
+		// StepValidateStorageClasses validates that any specified storage classes exist
+		// before attempting to create resources. This provides early feedback.
+		&StepValidateStorageClasses{
+			Config: b.config,
+			Client: b.clientset,
+		},
+		// StepCreateIsoDataVolume handles ISO URL downloads via CDI.
+		// When iso_url is specified, it creates a DataVolume with HTTP source.
+		// When iso_volume_name is used, it stores the name in state for subsequent steps.
+		&StepCreateIsoDataVolume{
+			Config: b.config,
+			Client: b.client,
+		},
+		// StepValidateIsoDataVolume validates that the ISO DataVolume exists and is ready.
+		// When iso_url was used, this step skips validation (handled by StepCreateIsoDataVolume).
 		&StepValidateIsoDataVolume{
 			Config: b.config,
 			Client: b.client,
