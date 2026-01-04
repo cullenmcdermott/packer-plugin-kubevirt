@@ -35,35 +35,33 @@ func (s *StepCreateVirtualMachine) Run(ctx context.Context, state multistep.Stat
 	networks := s.Config.Networks
 	buildStorageClass := s.Config.BuildStorageClass
 
-	// Get ISO volume name from state bag if available (set by StepCreateIsoDataVolume),
-	// otherwise fall back to config value for backward compatibility
-	isoVolumeName := s.Config.IsoVolumeName
-	if stateIsoName, ok := state.Get("iso_volume_name").(string); ok && stateIsoName != "" {
-		isoVolumeName = stateIsoName
-	}
+	// Get ISO volume name from state bag (set by StepCreateIsoDataVolume),
+	// falling back to config value for backward compatibility
+	isoVolumeName := GetIsoVolumeNameFromState(state, s.Config.IsoVolumeName)
 
 	if osType == "" || (osType != "linux" && osType != "windows") {
 		ui.Errorf("OS type of '%s' is not supported, set 'linux' or 'windows'.", osType)
 		return multistep.ActionHalt
 	}
 
-	virtualMachine := VirtualMachine(
-		name,
-		isoVolumeName,
-		diskSize,
-		instanceTypeName,
-		preferenceName,
-		instanceTypeKind,
-		preferenceKind,
-		osType,
-		networks,
-		buildStorageClass)
+	virtualMachine := VirtualMachine(VirtualMachineOptions{
+		Name:              name,
+		IsoVolumeName:     isoVolumeName,
+		DiskSize:          diskSize,
+		InstanceType:      instanceTypeName,
+		PreferenceName:    preferenceName,
+		InstanceTypeKind:  instanceTypeKind,
+		PreferenceKind:    preferenceKind,
+		OSType:            osType,
+		Networks:          networks,
+		BuildStorageClass: buildStorageClass,
+	})
 
 	ui.Sayf("Creating a new temporary VirtualMachine (%s/%s)...", namespace, name)
 
 	_, err := s.Client.VirtualMachine(namespace).Create(ctx, virtualMachine, metav1.CreateOptions{})
 	if err != nil {
-		ui.Error(err.Error())
+		ui.Errorf("Failed to create VirtualMachine %s/%s: %v", namespace, name, err)
 		return multistep.ActionHalt
 	}
 

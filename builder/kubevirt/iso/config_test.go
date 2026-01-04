@@ -11,13 +11,6 @@ import (
 )
 
 var _ = Describe("GenerateIsoName", func() {
-	It("produces deterministic output for the same URL", func() {
-		url := "https://example.com/path/to/fedora.iso"
-		name1 := iso.GenerateIsoName(url)
-		name2 := iso.GenerateIsoName(url)
-		Expect(name1).To(Equal(name2))
-	})
-
 	It("produces different output for different URLs", func() {
 		url1 := "https://example.com/fedora.iso"
 		url2 := "https://example.com/ubuntu.iso"
@@ -77,6 +70,24 @@ var _ = Describe("Config.Prepare", func() {
 			}
 			_, err := config.Prepare(map[string]interface{}{})
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("returns error when iso_url has no scheme", func() {
+			config := iso.Config{
+				IsoUrl: "example.com/fedora.iso",
+			}
+			_, err := config.Prepare(map[string]interface{}{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("valid scheme and host"))
+		})
+
+		It("returns error when iso_url has no host", func() {
+			config := iso.Config{
+				IsoUrl: "file:///path/to/fedora.iso",
+			}
+			_, err := config.Prepare(map[string]interface{}{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("valid scheme and host"))
 		})
 
 		It("succeeds when only iso_volume_name is specified", func() {

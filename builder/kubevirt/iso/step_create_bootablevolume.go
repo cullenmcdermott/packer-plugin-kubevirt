@@ -35,18 +35,18 @@ func (s *StepCreateBootableVolume) Run(ctx context.Context, state multistep.Stat
 
 	dv, err := s.Client.CdiClient().CdiV1beta1().DataVolumes(namespace).Create(ctx, cloneVolume, metav1.CreateOptions{})
 	if err != nil {
-		ui.Error(err.Error())
+		ui.Errorf("Failed to create bootable DataVolume %s/%s: %v", namespace, name, err)
 		return multistep.ActionHalt
 	}
 
 	if err = WaitUntilDataVolumeSucceeded(ctx, s.Client, dv.Namespace, dv.Name); err != nil {
-		ui.Error(err.Error())
+		ui.Errorf("Bootable DataVolume %s/%s failed to reach Succeeded phase: %v", namespace, name, err)
 		return multistep.ActionHalt
 	}
 
 	ds, err := s.Client.CdiClient().CdiV1beta1().DataSources(namespace).Create(ctx, sourceVolume, metav1.CreateOptions{})
 	if err != nil {
-		ui.Error(err.Error())
+		ui.Errorf("Failed to create DataSource %s/%s: %v", namespace, name, err)
 		return multistep.ActionHalt
 	}
 

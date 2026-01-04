@@ -21,20 +21,35 @@ type StepValidateStorageClasses struct {
 	Client kubernetes.Interface
 }
 
+// storageClassValidation holds a storage class name and its config field name for error messages.
+type storageClassValidation struct {
+	storageClass string
+	configField  string
+}
+
 func (s *StepValidateStorageClasses) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 
-	// Collect all storage classes that need validation
-	storageClasses := make(map[string]string) // map[storageClass]configField for error messages
+	// Collect all storage classes that need validation in deterministic order
+	var storageClasses []storageClassValidation
 
 	if s.Config.IsoStorageClass != "" {
-		storageClasses[s.Config.IsoStorageClass] = "iso_storage_class"
+		storageClasses = append(storageClasses, storageClassValidation{
+			storageClass: s.Config.IsoStorageClass,
+			configField:  "iso_storage_class",
+		})
 	}
 	if s.Config.BuildStorageClass != "" {
-		storageClasses[s.Config.BuildStorageClass] = "build_storage_class"
+		storageClasses = append(storageClasses, storageClassValidation{
+			storageClass: s.Config.BuildStorageClass,
+			configField:  "build_storage_class",
+		})
 	}
 	if s.Config.OutputStorageClass != "" {
-		storageClasses[s.Config.OutputStorageClass] = "output_storage_class"
+		storageClasses = append(storageClasses, storageClassValidation{
+			storageClass: s.Config.OutputStorageClass,
+			configField:  "output_storage_class",
+		})
 	}
 
 	if len(storageClasses) == 0 {
@@ -44,15 +59,15 @@ func (s *StepValidateStorageClasses) Run(ctx context.Context, state multistep.St
 
 	ui.Say("Validating storage classes...")
 
-	for sc, field := range storageClasses {
-		_, err := s.Client.StorageV1().StorageClasses().Get(ctx, sc, metav1.GetOptions{})
+	for _, sc := range storageClasses {
+		_, err := s.Client.StorageV1().StorageClasses().Get(ctx, sc.storageClass, metav1.GetOptions{})
 		if err != nil {
-			err := fmt.Errorf("storage class %q specified in %s does not exist: %w", sc, field, err)
+			err := fmt.Errorf("storage class %q specified in %s does not exist: %w", sc.storageClass, sc.configField, err)
 			state.Put("error", err)
 			ui.Error(err.Error())
 			return multistep.ActionHalt
 		}
-		ui.Say(fmt.Sprintf("  - %s: %s (valid)", field, sc))
+		ui.Say(fmt.Sprintf("  - %s: %s (valid)", sc.configField, sc.storageClass))
 	}
 
 	ui.Say("All storage classes validated successfully")

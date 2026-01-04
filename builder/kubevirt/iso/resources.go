@@ -81,20 +81,34 @@ func httpIsoDataVolume(name, namespace, url, storageClass string) *cdiv1.DataVol
 	}
 }
 
+// VirtualMachineOptions contains all the configuration needed to create a VirtualMachine.
+type VirtualMachineOptions struct {
+	Name              string
+	IsoVolumeName     string
+	DiskSize          string
+	InstanceType      string
+	PreferenceName    string
+	InstanceTypeKind  string
+	PreferenceKind    string
+	OSType            string
+	Networks          []Network
+	BuildStorageClass string
+}
+
 // VirtualMachine creates a VirtualMachine resource with the specified configuration.
-// The buildStorageClass parameter specifies the storage class for the root disk DataVolume.
-// If buildStorageClass is empty, the cluster default storage class will be used.
-func VirtualMachine(
-	name,
-	isoVolumeName,
-	diskSize,
-	instanceType,
-	preferenceName,
-	instanceTypeKind,
-	preferenceKind,
-	osType string,
-	networks []Network,
-	buildStorageClass string) *v1.VirtualMachine {
+// If BuildStorageClass is empty, the cluster default storage class will be used.
+func VirtualMachine(opts VirtualMachineOptions) *v1.VirtualMachine {
+	name := opts.Name
+	isoVolumeName := opts.IsoVolumeName
+	diskSize := opts.DiskSize
+	instanceType := opts.InstanceType
+	preferenceName := opts.PreferenceName
+	instanceTypeKind := opts.InstanceTypeKind
+	preferenceKind := opts.PreferenceKind
+	osType := opts.OSType
+	networks := opts.Networks
+	buildStorageClass := opts.BuildStorageClass
+
 	var disks []v1.Disk
 	var volumes []v1.Volume
 

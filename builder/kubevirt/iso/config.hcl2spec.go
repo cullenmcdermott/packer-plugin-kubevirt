@@ -23,7 +23,7 @@ type FlatConfig struct {
 	Namespace               *string           `mapstructure:"namespace" required:"true" cty:"namespace" hcl:"namespace"`
 	IsoVolumeName           *string           `mapstructure:"iso_volume_name" required:"false" cty:"iso_volume_name" hcl:"iso_volume_name"`
 	IsoUrl                  *string           `mapstructure:"iso_url" required:"false" cty:"iso_url" hcl:"iso_url"`
-	IsoName                 *string           `mapstructure:"iso_name" required:"false" cty:"iso_name" hcl:"iso_name"`
+	IsoDataVolumeName       *string           `mapstructure:"iso_datavolume_name" required:"false" cty:"iso_datavolume_name" hcl:"iso_datavolume_name"`
 	IsoStorageClass         *string           `mapstructure:"iso_storage_class" required:"false" cty:"iso_storage_class" hcl:"iso_storage_class"`
 	DeleteIso               *bool             `mapstructure:"delete_iso" required:"false" cty:"delete_iso" hcl:"delete_iso"`
 	StorageClass            *string           `mapstructure:"storage_class" required:"false" cty:"storage_class" hcl:"storage_class"`
@@ -81,7 +81,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"namespace":                  &hcldec.AttrSpec{Name: "namespace", Type: cty.String, Required: false},
 		"iso_volume_name":            &hcldec.AttrSpec{Name: "iso_volume_name", Type: cty.String, Required: false},
 		"iso_url":                    &hcldec.AttrSpec{Name: "iso_url", Type: cty.String, Required: false},
-		"iso_name":                   &hcldec.AttrSpec{Name: "iso_name", Type: cty.String, Required: false},
+		"iso_datavolume_name":        &hcldec.AttrSpec{Name: "iso_datavolume_name", Type: cty.String, Required: false},
 		"iso_storage_class":          &hcldec.AttrSpec{Name: "iso_storage_class", Type: cty.String, Required: false},
 		"delete_iso":                 &hcldec.AttrSpec{Name: "delete_iso", Type: cty.Bool, Required: false},
 		"storage_class":              &hcldec.AttrSpec{Name: "storage_class", Type: cty.String, Required: false},

@@ -32,16 +32,31 @@ func (s *StepCreateIsoDataVolume) Run(ctx context.Context, state multistep.State
 	ui := state.Get("ui").(packer.Ui)
 	namespace := s.Config.Namespace
 
-	// If iso_url is not configured, use existing IsoVolumeName and continue
+	// If iso_url is not configured, validate the existing IsoVolumeName DataVolume
 	if s.Config.IsoUrl == "" {
 		s.resolvedIsoName = s.Config.IsoVolumeName
+
+		ui.Sayf("Validating ISO DataVolume (%s/%s)...", namespace, s.resolvedIsoName)
+
+		_, err := s.Client.CdiClient().CdiV1beta1().DataVolumes(namespace).Get(ctx, s.resolvedIsoName, metav1.GetOptions{})
+		if err != nil {
+			ui.Errorf("ISO DataVolume %s/%s not found: %v", namespace, s.resolvedIsoName, err)
+			return multistep.ActionHalt
+		}
+
+		if err := WaitUntilDataVolumeSucceeded(ctx, s.Client, namespace, s.resolvedIsoName); err != nil {
+			ui.Errorf("ISO DataVolume %s/%s failed to reach Succeeded phase: %v", namespace, s.resolvedIsoName, err)
+			return multistep.ActionHalt
+		}
+
+		ui.Sayf("ISO DataVolume is ready (%s/%s)", namespace, s.resolvedIsoName)
 		state.Put("iso_volume_name", s.resolvedIsoName)
 		return multistep.ActionContinue
 	}
 
-	// Resolve ISO DataVolume name: use IsoName if set, otherwise generate from URL hash
-	if s.Config.IsoName != "" {
-		s.resolvedIsoName = s.Config.IsoName
+	// Resolve ISO DataVolume name: use IsoDataVolumeName if set, otherwise generate from URL hash
+	if s.Config.IsoDataVolumeName != "" {
+		s.resolvedIsoName = s.Config.IsoDataVolumeName
 	} else {
 		s.resolvedIsoName = GenerateIsoName(s.Config.IsoUrl)
 	}

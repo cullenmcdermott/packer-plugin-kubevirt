@@ -156,21 +156,63 @@ var _ = Describe("StepCreateIsoDataVolume", func() {
 			Expect(action).To(Equal(multistep.ActionHalt))
 		})
 
-		It("stores IsoVolumeName in state and continues when iso_url is not set", func() {
+		It("validates and stores IsoVolumeName when iso_url is not set", func() {
+			existingName := "existing-iso-dv"
 			step.Config.IsoUrl = ""
-			step.Config.IsoVolumeName = "existing-iso-dv"
+			step.Config.IsoVolumeName = existingName
+
+			// Pre-create the DataVolume in Succeeded state
+			_, err := cdiClient.CdiV1beta1().DataVolumes(namespace).Create(context.Background(), &cdiv1beta1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      existingName,
+					Namespace: namespace,
+				},
+				Status: cdiv1beta1.DataVolumeStatus{Phase: cdiv1beta1.Succeeded},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
 
 			action := step.Run(context.Background(), state)
 			Expect(action).To(Equal(multistep.ActionContinue))
 
 			// Verify existing ISO volume name is stored in state
 			isoVolumeName := state.Get("iso_volume_name")
-			Expect(isoVolumeName).To(Equal("existing-iso-dv"))
+			Expect(isoVolumeName).To(Equal(existingName))
 		})
 
-		It("uses IsoName override when specified", func() {
+		It("halts when iso_volume_name DataVolume not found", func() {
+			step.Config.IsoUrl = ""
+			step.Config.IsoVolumeName = "nonexistent-iso"
+
+			action := step.Run(context.Background(), state)
+			Expect(action).To(Equal(multistep.ActionHalt))
+		})
+
+		It("halts when iso_volume_name DataVolume never succeeds", func() {
+			existingName := "pending-iso"
+			step.Config.IsoUrl = ""
+			step.Config.IsoVolumeName = existingName
+
+			// Pre-create the DataVolume in Pending state
+			_, err := cdiClient.CdiV1beta1().DataVolumes(namespace).Create(context.Background(), &cdiv1beta1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      existingName,
+					Namespace: namespace,
+				},
+				Status: cdiv1beta1.DataVolumeStatus{Phase: cdiv1beta1.Pending},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Cancel context early to simulate stuck Pending
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			action := step.Run(ctx, state)
+			Expect(action).To(Equal(multistep.ActionHalt))
+		})
+
+		It("uses IsoDataVolumeName override when specified", func() {
 			customName := "my-custom-iso"
-			step.Config.IsoName = customName
+			step.Config.IsoDataVolumeName = customName
 
 			cdiClient.PrependReactor("create", "datavolumes", func(action testing.Action) (bool, runtime.Object, error) {
 				create := action.(testing.CreateAction)

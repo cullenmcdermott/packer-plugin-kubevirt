@@ -67,118 +67,60 @@ var _ = Describe("StepValidateStorageClasses", func() {
 	})
 
 	Context("when all specified storage classes exist", func() {
-		It("should validate successfully with iso_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					IsoStorageClass: "rook-cephfs",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionContinue))
-		})
-
-		It("should validate successfully with build_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					BuildStorageClass: "local-path",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionContinue))
-		})
-
-		It("should validate successfully with output_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					OutputStorageClass: "rook-ceph-block",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionContinue))
-		})
-
-		It("should validate successfully with all storage classes", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					IsoStorageClass:    "rook-cephfs",
-					BuildStorageClass:  "local-path",
-					OutputStorageClass: "rook-ceph-block",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionContinue))
-		})
+		DescribeTable("should validate successfully",
+			func(config iso.Config) {
+				step = &iso.StepValidateStorageClasses{
+					Config: config,
+					Client: clientset,
+				}
+				action := step.Run(ctx, state)
+				Expect(action).To(Equal(multistep.ActionContinue))
+			},
+			Entry("with iso_storage_class", iso.Config{IsoStorageClass: "rook-cephfs"}),
+			Entry("with build_storage_class", iso.Config{BuildStorageClass: "local-path"}),
+			Entry("with output_storage_class", iso.Config{OutputStorageClass: "rook-ceph-block"}),
+			Entry("with all storage classes", iso.Config{
+				IsoStorageClass:    "rook-cephfs",
+				BuildStorageClass:  "local-path",
+				OutputStorageClass: "rook-ceph-block",
+			}),
+		)
 	})
 
 	Context("when a specified storage class does not exist", func() {
-		It("should halt with error for invalid iso_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					IsoStorageClass: "nonexistent-sc",
-				},
-				Client: clientset,
-			}
+		DescribeTable("should halt with descriptive error",
+			func(config iso.Config, expectedField, expectedValue string) {
+				step = &iso.StepValidateStorageClasses{
+					Config: config,
+					Client: clientset,
+				}
 
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionHalt))
+				action := step.Run(ctx, state)
+				Expect(action).To(Equal(multistep.ActionHalt))
 
-			err, ok := state.GetOk("error")
-			Expect(ok).To(BeTrue())
-			Expect(err).To(MatchError(ContainSubstring("iso_storage_class")))
-			Expect(err).To(MatchError(ContainSubstring("nonexistent-sc")))
-			Expect(err).To(MatchError(ContainSubstring("does not exist")))
-		})
-
-		It("should halt with error for invalid build_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					BuildStorageClass: "hostpath-local",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionHalt))
-
-			err, ok := state.GetOk("error")
-			Expect(ok).To(BeTrue())
-			Expect(err).To(MatchError(ContainSubstring("build_storage_class")))
-			Expect(err).To(MatchError(ContainSubstring("hostpath-local")))
-			Expect(err).To(MatchError(ContainSubstring("does not exist")))
-		})
-
-		It("should halt with error for invalid output_storage_class", func() {
-			step = &iso.StepValidateStorageClasses{
-				Config: iso.Config{
-					OutputStorageClass: "invalid-output",
-				},
-				Client: clientset,
-			}
-
-			action := step.Run(ctx, state)
-			Expect(action).To(Equal(multistep.ActionHalt))
-
-			err, ok := state.GetOk("error")
-			Expect(ok).To(BeTrue())
-			Expect(err).To(MatchError(ContainSubstring("output_storage_class")))
-			Expect(err).To(MatchError(ContainSubstring("invalid-output")))
-			Expect(err).To(MatchError(ContainSubstring("does not exist")))
-		})
+				err, ok := state.GetOk("error")
+				Expect(ok).To(BeTrue())
+				Expect(err).To(MatchError(ContainSubstring(expectedField)))
+				Expect(err).To(MatchError(ContainSubstring(expectedValue)))
+				Expect(err).To(MatchError(ContainSubstring("does not exist")))
+			},
+			Entry("for invalid iso_storage_class",
+				iso.Config{IsoStorageClass: "nonexistent-sc"},
+				"iso_storage_class", "nonexistent-sc"),
+			Entry("for invalid build_storage_class",
+				iso.Config{BuildStorageClass: "hostpath-local"},
+				"build_storage_class", "hostpath-local"),
+			Entry("for invalid output_storage_class",
+				iso.Config{OutputStorageClass: "invalid-output"},
+				"output_storage_class", "invalid-output"),
+		)
 
 		It("should halt on first invalid storage class when multiple are specified", func() {
 			step = &iso.StepValidateStorageClasses{
 				Config: iso.Config{
-					IsoStorageClass:    "rook-cephfs",     // valid
-					BuildStorageClass:  "invalid-build",   // invalid
-					OutputStorageClass: "invalid-output",  // invalid
+					IsoStorageClass:    "rook-cephfs",    // valid
+					BuildStorageClass:  "invalid-build",  // invalid
+					OutputStorageClass: "invalid-output", // invalid
 				},
 				Client: clientset,
 			}
@@ -188,7 +130,9 @@ var _ = Describe("StepValidateStorageClasses", func() {
 
 			err, ok := state.GetOk("error")
 			Expect(ok).To(BeTrue())
-			Expect(err.(error).Error()).To(ContainSubstring("does not exist"))
+			// With deterministic ordering, build_storage_class should fail first
+			Expect(err).To(MatchError(ContainSubstring("build_storage_class")))
+			Expect(err).To(MatchError(ContainSubstring("does not exist")))
 		})
 	})
 })

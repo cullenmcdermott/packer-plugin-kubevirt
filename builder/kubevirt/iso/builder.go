@@ -72,16 +72,11 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			Config: b.config,
 			Client: b.clientset,
 		},
-		// StepCreateIsoDataVolume handles ISO URL downloads via CDI.
-		// When iso_url is specified, it creates a DataVolume with HTTP source.
-		// When iso_volume_name is used, it stores the name in state for subsequent steps.
+		// StepCreateIsoDataVolume handles ISO sources:
+		// - When iso_url is specified, it creates a DataVolume with HTTP source.
+		// - When iso_volume_name is used, it validates the existing DataVolume.
+		// In both cases, it stores the resolved name in state for subsequent steps.
 		&StepCreateIsoDataVolume{
-			Config: b.config,
-			Client: b.client,
-		},
-		// StepValidateIsoDataVolume validates that the ISO DataVolume exists and is ready.
-		// When iso_url was used, this step skips validation (handled by StepCreateIsoDataVolume).
-		&StepValidateIsoDataVolume{
 			Config: b.config,
 			Client: b.client,
 		},

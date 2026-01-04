@@ -5,7 +5,6 @@ package iso_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
@@ -79,18 +78,18 @@ var _ = Describe("Storage Class Integration", func() {
 
 	Describe("VirtualMachine resource", func() {
 		It("applies storage class to DataVolumeTemplateSpec when specified", func() {
-			vm := iso.VirtualMachine(
-				name,
-				"iso-vol",
-				"10Gi",
-				"cx1.medium",
-				"fedora",
-				"",
-				"",
-				"linux",
-				nil,
-				buildStorageClass,
-			)
+			vm := iso.VirtualMachine(iso.VirtualMachineOptions{
+				Name:              name,
+				IsoVolumeName:     "iso-vol",
+				DiskSize:          "10Gi",
+				InstanceType:      "cx1.medium",
+				PreferenceName:    "fedora",
+				InstanceTypeKind:  "",
+				PreferenceKind:    "",
+				OSType:            "linux",
+				Networks:          nil,
+				BuildStorageClass: buildStorageClass,
+			})
 
 			Expect(vm).NotTo(BeNil())
 			Expect(vm.Spec.DataVolumeTemplates).To(HaveLen(1))
@@ -101,18 +100,18 @@ var _ = Describe("Storage Class Integration", func() {
 		})
 
 		It("uses default (nil) when no storage class specified", func() {
-			vm := iso.VirtualMachine(
-				name,
-				"iso-vol",
-				"10Gi",
-				"cx1.medium",
-				"fedora",
-				"",
-				"",
-				"linux",
-				nil,
-				"", // empty storage class
-			)
+			vm := iso.VirtualMachine(iso.VirtualMachineOptions{
+				Name:              name,
+				IsoVolumeName:     "iso-vol",
+				DiskSize:          "10Gi",
+				InstanceType:      "cx1.medium",
+				PreferenceName:    "fedora",
+				InstanceTypeKind:  "",
+				PreferenceKind:    "",
+				OSType:            "linux",
+				Networks:          nil,
+				BuildStorageClass: "", // empty storage class
+			})
 
 			Expect(vm).NotTo(BeNil())
 			Expect(vm.Spec.DataVolumeTemplates).To(HaveLen(1))
@@ -310,5 +309,3 @@ var _ = Describe("Storage Class Integration", func() {
 	})
 })
 
-// Suppress unused import error for fmt
-var _ = fmt.Sprint
